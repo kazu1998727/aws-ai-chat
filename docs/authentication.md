@@ -178,7 +178,7 @@ flowchart TD
 | ✅ メリット   | 保護漏れが原理的に起きない。ルート追加時に何も考えなくてよい |
 | ❌ デメリット | 公開ページ（LP、利用規約など）が作れない                     |
 
-公開ページが必要になったら、`<Authenticator>` をルーターの内側（保護したいルートのレイアウト）へ移す改修が要ります。
+公開ページ（LP、利用規約など）が必要になったら、`<Authenticator>` をルーターの内側へ移す改修が要ります。手順は [6. ページ単位で認証する場合](#6-ページ単位で認証する場合) を参照してください。
 
 ### `useAuthenticator` の使い方
 
@@ -355,3 +355,179 @@ Identity Pool の未認証アイデンティティが有効です（Amplify の�
 ```
 
 フラットで単純なモデルです。ロール分けや共有が必要になった時点で拡張します。
+
+---
+
+## 6. ページ単位で認証する場合
+
+現状は [3. フロントエンド側のガード](#3-フロントエンド側のガード) の通りアプリ全体を `<Authenticator>` で囲んでいます。公開ページ（LP、利用規約など）を追加したくなった時点で、以下のいずれかへ移行します。
+
+> **現状では移行の必要はありません。** 公開ページが 1 つも存在しないため、全体を囲む構成が最もシンプルで安全です。
+
+### ⚠️ 先に知っておくべき制約
+
+`useAuthenticator` は **`<Authenticator>` の子孫でないと動作しません**。現在 3 箇所で使われています。
+
+| ファイル                                        | 用途      |
+| ----------------------------------------------- | --------- |
+| [Sidebar.tsx](../src/components/ui/Sidebar.tsx) | `signOut` |
+| [Profile.tsx](../src/components/ui/Profile.tsx) | `user`    |
+| [NewChat.tsx](../src/pages/NewChat.tsx)         | `user`    |
+
+`<Authenticator>` をルートの内側に移すと、その外に出たコンポーネントが **実行時エラーで落ちます**。
+
+解決策は **`<Authenticator.Provider>` をアプリ最上位に置く**ことです。コンテキストだけを供給し、サインイン UI は表示しません。**どの方法を選ぶ場合もこれが前提**になります。
+
+```tsx
+// src/main.tsx
+<Authenticator.Provider>
+  <App />
+</Authenticator.Provider>
+```
+
+### 方法 A: 保護レイアウトルート（推奨）
+
+差分が最小で、保護漏れも起きにくい方法です。
+
+```mermaid
+flowchart TD
+    R["createBrowserRouter"] --> P1["/ 公開"]
+    R --> P2["/terms 公開"]
+    R --> PL["ProtectedLayout<br/>path なしのレイアウトルート"]
+    PL --> A{"&lt;Authenticator&gt;"}
+    A -->|"未認証"| SI["サインイン UI"]
+    A -->|"認証済み"| CL["ChatLayout"]
+    CL --> C1["/chat/new"]
+    CL --> C2["/chat/:conversationId"]
+
+    style SI fill:#f4d4d4
+    style CL fill:#d4f4dd
+```
+
+**① 保護レイアウトを作る**
+
+```tsx
+// src/components/layout/ProtectedLayout.tsx
+import { Authenticator } from '@aws-amplify/ui-react'
+import { Outlet } from 'react-router'
+
+export default function ProtectedLayout() {
+  return (
+    <Authenticator>
+      <Outlet />
+    </Authenticator>
+  )
+}
+```
+
+**② ルートに挟む**（[src/routes.tsx](../src/routes.tsx)）
+
+```tsx
+export const router = createBrowserRouter([
+  { path: '/', Component: Landing }, // 公開ページ
+  { path: '/terms', Component: Terms }, // 公開ページ
+  {
+    Component: ProtectedLayout, // ← path なし = レイアウト専用ルート
+    children: [
+      {
+        path: '/chat',
+        Component: ChatLayout,
+        children: [
+          { path: 'new', Component: NewChat },
+          { path: ':conversationId', Component: ChatConversation },
+        ],
+      },
+    ],
+  },
+  { path: '*', element: <Navigate to="/chat/new" replace /> },
+])
+```
+
+`path` を持たないルートは **レイアウトルート**として機能し、URL に影響を与えずに子ルートを囲めます。保護したいルートは `children` に追加するだけです。
+
+**③ `main.tsx` を Provider に差し替える**
+
+```diff
+- <Authenticator>
++ <Authenticator.Provider>
+    <App />
+- </Authenticator>
++ </Authenticator.Provider>
+```
+
+サインイン UI がそのまま使えるため、**ログインページを別途作る必要がありません**。
+
+### 方法 B: 専用ログインページへリダイレクト
+
+`/login` に遷移させたい、ログイン前後で URL を分けたい場合に使います。
+
+```tsx
+// src/components/layout/RequireAuth.tsx
+import { useAuthenticator } from '@aws-amplify/ui-react'
+import { Navigate, Outlet, useLocation } from 'react-router'
+
+export default function RequireAuth() {
+  const { authStatus } = useAuthenticator((context) => [context.authStatus])
+  const location = useLocation()
+
+  // 判定中に一瞬ログイン画面が表示されるのを防ぐ
+  if (authStatus === 'configuring') return null
+
+  if (authStatus !== 'authenticated') {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+  return <Outlet />
+}
+```
+
+`authStatus` の型は `'configuring' | 'authenticated' | 'unauthenticated'` の 3 値です。
+
+> ⚠️ **`configuring`（localStorage からトークンを復元中）の処理を忘れると、リロードのたびにログイン画面がちらつきます。** この方法で最も間違えやすい箇所です。
+
+ログインページ側:
+
+```tsx
+// src/pages/Login.tsx
+import { Authenticator } from '@aws-amplify/ui-react'
+import { Navigate, useLocation } from 'react-router'
+
+export default function Login() {
+  const location = useLocation()
+  const from = location.state?.from?.pathname ?? '/chat/new'
+  return (
+    <Authenticator>
+      {/* 認証成功時のみ children が描画される */}
+      <Navigate to={from} replace />
+    </Authenticator>
+  )
+}
+```
+
+ファイル数と状態管理が増えるぶん、方法 A より壊しやすくなります。URL を分ける要件がなければ選ぶ理由はありません。
+
+### 方法 C: `withAuthenticator` HOC
+
+ページ 1 枚だけを守りたいときの最小手段です。
+
+```tsx
+import { withAuthenticator } from '@aws-amplify/ui-react'
+
+function NewChat() {
+  /* ... */
+}
+export default withAuthenticator(NewChat)
+```
+
+> ⚠️ **ページを追加するたびに書く必要があり、書き忘れがそのまま保護漏れになります。** ページ数が増える前提なら採用しないでください。
+
+### 比較
+
+|                    | 方法 A レイアウトルート                 | 方法 B リダイレクト | 方法 C HOC |
+| ------------------ | --------------------------------------- | ------------------- | ---------- |
+| 新規ファイル       | 1                                       | 2                   | 0          |
+| ログインページ     | 不要                                    | 必要                | 不要       |
+| 保護漏れリスク     | 低（`children` に入れ忘れたら公開扱い） | 低                  | **高**     |
+| URL の変化         | なし                                    | `/login` へ遷移     | なし       |
+| `configuring` 考慮 | 不要                                    | **必要**            | 不要       |
+
+**方法 A を推奨します。** 公開ページが必要になった時点で移行するのが自然な順序です。
