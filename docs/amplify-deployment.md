@@ -48,11 +48,15 @@ Amplify Gen 2 のバックエンド定義をコードで管理するディレク
 ```typescript
 import { defineBackend } from '@aws-amplify/backend'
 import { auth } from './auth/resource'
+import { data } from './data/resource'
 
 export const backend = defineBackend({
   auth,
+  data,
 })
 ```
+
+`data` を追加すると、`amplify/data/resource.ts` で定義したデータモデルが AppSync（GraphQL API）+ DynamoDB として同時にデプロイされます。
 
 ### `amplify/auth/resource.ts`
 
@@ -71,6 +75,12 @@ export const auth = defineAuth({
 現在はメールアドレスによるログインのみ有効です。ソーシャルログインや MFA などはここに追加します。
 
 ローカルで Cognito 環境を構築する手順は [Amplify Sandbox（ローカル開発）](./amplify-sandbox.md) を参照してください。
+
+### `amplify/data/resource.ts`
+
+Amplify Data（AppSync + DynamoDB）のスキーマ定義です。TypeScript の `a.schema()` で GraphQL スキーマ相当のモデルを宣言します。
+
+詳細は [Amplify Data モデル](./amplify-data-model.md) を参照してください。
 
 ---
 
