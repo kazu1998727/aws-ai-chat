@@ -1,0 +1,2 @@
+command -v git-secrets >/dev/null && git secrets --pre_commit_hook -- "$@"
+pnpm exec lint-staged
