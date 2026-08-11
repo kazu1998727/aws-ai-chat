@@ -43,7 +43,7 @@ pnpm v10 以降は、依存パッケージの install スクリプト（postinst
 | `core-js`         | JavaScript ポリフィル                | 通常は不要（`false`）                                            |
 | `esbuild`         | 高速バンドラー（ネイティブバイナリ） | **必須**（`true`。Amplify バックエンドのビルド・デプロイに使用） |
 
-> ⚠️ `esbuild` を `false` のままにすると、Amplify CI 上で `ampx pipeline-deploy` が失敗します。詳細は下記の [トラブルシューティング](#トラブルシューティング-esbuild-のビルド失敗) を参照してください。
+> ⚠️ `esbuild` を `false` のままにすると、Amplify CI 上で `ampx pipeline-deploy` が失敗します。ただし `true` にするだけでは不十分で、`esbuild` を **直接の devDependency として追加する** 必要もあります。詳細は下記の [トラブルシューティング](#トラブルシューティング-esbuild-のビルド失敗) を参照してください。
 
 ### ビルドスクリプトの許可方法
 
@@ -89,19 +89,19 @@ Amplify CI の backend フェーズで `npx ampx pipeline-deploy` を実行し�
     Resolution: Check the Caused by error and fix any issues in your backend code
 ```
 
-### 原因
+`ampx pipeline-deploy` は内部でカスタムリソース用の Lambda 関数（`branch_linker.js` など）をバンドルするために、`pnpm exec -- esbuild ...` という形で esbuild を **CLI として** 呼び出します。この呼び出しが失敗すると、CDK のアセット合成（Assembly）自体がエラーになります。
 
-`pnpm-workspace.yaml` の `allowBuilds` で `esbuild: false` に設定されていたことが原因です。
+失敗の原因は 2 つあり、**両方を満たさないと解決しません**。
+
+### 原因 1: ビルドスクリプトが許可されていない
+
+`pnpm-workspace.yaml` の `allowBuilds` で `esbuild: false` になっているケースです。
 
 pnpm v10 以降、依存パッケージの install スクリプト（postinstall など）は `allowBuilds` で明示的に許可したパッケージのみ実行されます。`esbuild` はネイティブバイナリを postinstall で取得する仕組みのため、`false` のままだと **バイナリが存在しない状態** になります。
 
-`ampx pipeline-deploy` は内部でカスタムリソース用の Lambda 関数（`branch_linker.js` など）をバンドルするために `esbuild` を CLI 経由で呼び出しますが、バイナリが無いためコマンドが失敗し、CDK のアセット合成（Assembly）自体がエラーになります。
+これはローカルの `pnpm approve-builds` 実行時に `esbuild` を選択しなかった場合に発生します。ローカルではたまたま別の経路で `esbuild` バイナリが存在していて気づかず、CI 環境（クリーンな `pnpm install`）で初めて表面化するケースが多いです。
 
-これはローカルの `pnpm approve-builds` 実行時に `esbuild` を選択しなかった（もしくは選択せず `pnpm-workspace.yaml` が生成された）場合に発生します。ローカル環境ではたまたま別の経路で `esbuild` バイナリが存在していて気づかず、CI 環境（クリーンな `pnpm install`）で初めて表面化するケースが多いです。
-
-### 解決方法
-
-`pnpm-workspace.yaml` で `esbuild` の許可を `true` に変更します。
+**解決方法**: `pnpm-workspace.yaml` で `esbuild: true` に変更します。
 
 ```yaml
 allowBuilds:
@@ -110,17 +110,46 @@ allowBuilds:
   esbuild: true
 ```
 
-変更後、ローカルで反映を確認する場合は次を実行します。
+### 原因 2: `esbuild` が直接の依存関係になっていない
 
-```bash
-pnpm install
-pnpm rebuild esbuild
+`allowBuilds` を `true` にしても解決しない場合はこちらです。エラーログに以下が出ていれば確定です。
+
+```
+[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command "esbuild" not found
+Did you mean "pnpm exec eslint"?
 ```
 
-CI では `amplify.yml` の `pnpm install`（preBuild フェーズ）で自動的に `esbuild` のビルドスクリプトが実行されるようになり、以降の `ampx pipeline-deploy` が成功します。
+`esbuild` は本プロジェクトでは `vite` や `tsx` の **推移的依存** としてのみツリーに存在していました。pnpm は（`node-linker=hoisted` であっても）ルートの `node_modules/.bin` に **直接の依存関係の実行ファイルしかリンクしません**。そのため `pnpm exec esbuild` からは解決できず、コマンドが見つからずに失敗していました。
+
+`allowBuilds` はバイナリのダウンロードを許可するだけで、CLI としてルートから呼べるようにするものではない、という点が分かりにくいポイントです。
+
+**解決方法**: `esbuild` を直接の devDependency として追加します。
+
+```bash
+pnpm add -D esbuild@^0.25.12
+```
+
+```json
+"devDependencies": {
+  "esbuild": "^0.25.12"
+}
+```
+
+> バージョンは `pnpm why esbuild` で確認した既存ツリーのもの（vite / tsx が使用中）に合わせています。別バージョンを入れると esbuild が二重にインストールされるため、`pnpm why esbuild` が `Found 1 version of esbuild` を返すことを確認してください。
+
+### 確認方法
+
+ローカルで CI と同じ状態を再現して確認します。
+
+```bash
+rm -rf node_modules && pnpm install
+pnpm exec esbuild --version   # バージョンが表示されれば OK
+pnpm why esbuild              # "Found 1 version of esbuild" であること
+```
 
 ### 再発防止のポイント
 
-- `pnpm approve-builds` で新しい依存関係の許可を求められた際、**ネイティブバイナリ系パッケージ（esbuild、@parcel/watcher など）は基本的に許可する**
+- **CLI として呼ばれるツールは直接の依存関係にする**。推移的依存に頼ると `pnpm exec` から解決できない。今回のように外部ツール（CDK）が内部で `pnpm exec` を呼ぶケースでは特に気づきにくい
+- `pnpm approve-builds` で許可を求められた際、**ネイティブバイナリ系パッケージ（esbuild、@parcel/watcher など）は基本的に許可する**
 - CI で初めて失敗が発覚しないよう、ローカルでも `rm -rf node_modules && pnpm install` でクリーンインストールを試し、CI と同じ状態を再現して確認する
 - `pnpm-workspace.yaml` の `allowBuilds` を変更した際は、その意図をコミットメッセージやこのドキュメントに残す
