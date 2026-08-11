@@ -1,4 +1,4 @@
 allowBuilds:
-  '@parcel/watcher': false
+  '@parcel/watcher': true
   core-js: false
-  esbuild: false
+  esbuild: true
