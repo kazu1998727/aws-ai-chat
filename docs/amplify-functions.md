@@ -160,6 +160,7 @@ const { data, errors } = await client.queries.HelloWorld()
 
 ## 関連ドキュメント
 
+- [Bedrock チャット機能](./bedrock-chat.md) — 本手順の応用例（引数付きクエリ、外部 SDK、IAM 権限追加）
 - [Amplify Data モデル](./amplify-data-model.md) — スキーマとモデルの定義
 - [認証・認可](./authentication.md) — Cognito と認可ルール
 - [Amplify Sandbox](./amplify-sandbox.md) — ローカル開発環境
