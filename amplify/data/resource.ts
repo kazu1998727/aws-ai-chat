@@ -1,4 +1,5 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend'
+import { helloWorldFunction } from '../function/helloWorld/resource'
 
 const schema = a.schema({
   Message: a
@@ -22,6 +23,12 @@ const schema = a.schema({
     })
     .identifier(['conversationId'])
     .authorization((allow) => [allow.owner()]),
+
+  HelloWorld: a
+    .query()
+    .returns(a.string())
+    .authorization((allow) => [allow.authenticated()]) // 認証されたユーザーからのアクセスを許可
+    .handler(a.handler.function(helloWorldFunction)), // helloWorldFunctionをハンドラとして指定
 })
 
 export type Schema = ClientSchema<typeof schema>

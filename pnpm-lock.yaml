@@ -11,6 +11,9 @@ importers:
       '@aws-amplify/ui-react':
         specifier: ^6.15.5
         version: 6.15.5(@aws-amplify/core@6.18.0)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(aws-amplify@6.20.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(xstate@4.38.3)
+      '@types/aws-lambda':
+        specifier: ^8.10.162
+        version: 8.10.162
       aws-amplify:
         specifier: ^6.20.0
         version: 6.20.0

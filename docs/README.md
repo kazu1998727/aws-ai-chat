@@ -7,6 +7,7 @@
 - [認証・認可](./authentication.md) — Cognito、`<Authenticator>`、`allow.owner()` による認可
 - [Amplify デプロイ設定](./amplify-deployment.md) — `amplify.yml`、Amplify バックエンド定義
 - [Amplify Data モデル](./amplify-data-model.md) — `amplify/data/resource.ts` のスキーマ・認可ルール
+- [Amplify Functions（Lambda）](./amplify-functions.md) — `amplify/function/` の Lambda 定義、AppSync カスタムクエリとの紐付け
 - [Amplify Sandbox（ローカル開発）](./amplify-sandbox.md) — `npx ampx sandbox`、データ永続性、チーム開発
 - [開発ツール設定](./development-tooling.md) — Prettier、ESLint、Husky、lint-staged、Vitest、git-secrets
 - [フロントエンドライブラリ](./frontend-libraries.md) — Tailwind CSS、tailwind-merge、React Router
