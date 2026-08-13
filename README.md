@@ -9,7 +9,7 @@
 
 ## AWS Amplify へのデプロイ
 
-このプロジェクトは、リポジトリ直下の `amplify.yml` ビルド仕様を使って AWS Amplify Hosting 経由でデプロイされます。
+このプロジェクトは、リポジトリ直下の `amplify.yml` ビルド仕様を使って AWS Amplify Hosting 経由でデプロイされます
 
 ### フロントエンドのビルド
 
@@ -95,3 +95,5 @@ export default defineConfig([
   },
 ])
 ```
+
+\nコミット: 自動更新 2026-08-13T04:34:40Z
