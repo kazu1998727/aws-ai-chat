@@ -1,2 +1,11 @@
+#!/bin/sh
+
+current_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)
+
+if [ "$current_branch" = "main" ]; then
+  echo "mainへの直接コミットは禁止されています。新しいブランチで作業してください。" >&2
+  exit 1
+fi
+
 command -v git-secrets >/dev/null && git secrets --pre_commit_hook -- "$@"
 pnpm exec lint-staged
