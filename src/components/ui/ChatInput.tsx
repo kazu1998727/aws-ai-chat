@@ -4,15 +4,17 @@ import { type FormEvent, useState } from 'react'
 interface ChatInputProps {
   sendMessage: (message: string, model: string) => void
   initialModel?: string
+  disabled?: boolean
 }
 
 export default function ChatInput({
   sendMessage,
   initialModel,
+  disabled = false,
 }: ChatInputProps) {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!message.trim() || !selectedModel) {
+    if (disabled || !message.trim() || !selectedModel) {
       return
     }
     sendMessage(message, selectedModel)
@@ -44,6 +46,7 @@ export default function ChatInput({
           name="message"
           className="field-sizing-content max-h-80 w-full resize-none overflow-y-auto border-none break-words outline-none"
           placeholder="質問を入力してください"
+          disabled={disabled}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
@@ -74,7 +77,7 @@ export default function ChatInput({
           </div>
           <button
             type="submit"
-            disabled={message.trim() === ''}
+            disabled={disabled || message.trim() === ''}
             className="flex items-center justify-center rounded-md bg-emerald-600 p-2 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
           >
             <FaArrowUp className="h-5 w-5" />

@@ -22,12 +22,6 @@ export default function NewChat() {
           content: message,
           timestamp: new Date(),
         },
-        {
-          id: `message-${self.crypto.randomUUID()}`,
-          role: 'assistant',
-          content: 'AIのダミーメッセージです',
-          timestamp: new Date(),
-        },
       ],
       createdAt: new Date(),
       updatedAt: new Date(),

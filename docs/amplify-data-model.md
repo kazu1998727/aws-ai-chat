@@ -140,7 +140,24 @@ await client.models.Message.create({
 })
 ```
 
-※ 上記は本プロジェクトのスキーマに基づく利用例です。実際の呼び出しコードはフロントエンド実装時に追加してください。
+※ 上記は本プロジェクトのスキーマに基づく利用例です。実際の呼び出しコードはフロントエンド実装時に追加してください。`generateClient` は [`src/api/client.ts`](../src/api/client.ts) で生成済みですが、現状使っているのは `BedrockChat` カスタムクエリだけです。会話データは依然として [`src/sampleData.ts`](../src/sampleData.ts) のダミーデータで、`Conversation` / `Message` モデルには接続していません（[フロントエンドと Bedrock の接続](./frontend-bedrock-integration.md) 参照）。
+
+## なぜ DynamoDB を直接読まず GraphQL 経由なのか
+
+「GraphQL を選定した」という判断をしたわけではなく、**Amplify Gen2 の `defineData` を使った時点で自動的にこの構成になる** のが実情です。`a.model()` の定義から AppSync・DynamoDB テーブル・リゾルバーが一括生成され、DynamoDB は AppSync の裏側のデータストアとして扱われます。フロントエンドから直接テーブルを叩く経路は用意されていません。
+
+仮に直接アクセスに切り替えた場合、以下を自前で肩代わりすることになります。
+
+| 観点             | GraphQL（AppSync）経由                               | ブラウザから直接 DynamoDB                  |
+| ---------------- | ---------------------------------------------------- | ------------------------------------------ |
+| 認証             | Cognito ユーザープールのトークンをそのまま使える     | IAM 認証情報をブラウザに配布する必要がある |
+| 認可             | `allow.owner()` をリゾルバー側（サーバー）で強制     | クライアント側の実装頼みになる             |
+| 型安全           | `ClientSchema<typeof schema>` でフロントまで型が通る | 手書きで型を維持する                       |
+| リアルタイム更新 | `observeQuery` / subscription が標準で使える         | 自前実装が必要                             |
+
+特に重要なのは認可です。`allow.owner()` による「他人の `Conversation` / `Message` は読めない」という保証は AppSync のリゾルバーが担保しており、直接アクセスにするとこの保証が失われます。
+
+REST に寄せたい場合は Lambda + Function URL という選択肢もありますが、上表の 4 項目をすべて手書きで再実装することになるため、現時点では Amplify Data の構成を維持しています。
 
 ## 関連ドキュメント
 
