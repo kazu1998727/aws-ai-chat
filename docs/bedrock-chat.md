@@ -268,6 +268,8 @@ console.log(data)
 
 `modelId` に渡すのは **素のモデル ID ではなく推論プロファイル ID** です（前節参照）。使えるプロファイルはリージョン依存なので、値をハードコードする前に `aws bedrock list-inference-profiles` で必ず実在を確認してください。
 
+本プロジェクトでの実際の配線（クライアントの生成場所、チャット画面の状態設計、ローディングとエラー処理）は [フロントエンドと Bedrock の接続](./frontend-bedrock-integration.md) にまとめています。
+
 ### AppSync コンソールでの確認
 
 AWS コンソール → AppSync → 対象 API → 「クエリ」から、デプロイ後すぐに動作確認できます。
